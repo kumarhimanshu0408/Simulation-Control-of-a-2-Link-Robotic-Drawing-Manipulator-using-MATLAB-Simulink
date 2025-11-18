@@ -690,31 +690,63 @@ x_out = x * scale + initX; y_out = y * scale + initY;
 end
 
 function [x_out,y_out] = generate_builtin(type,N)
-t = linspace(0,2*pi,N);
-switch type
-    case 'Circle'
-        R = 0.5; x_out = R*cos(t); y_out = R*sin(t);
-    case 'Line'
-        x_out = linspace(-0.5,0.5,N); y_out = zeros(1,N);
-    case 'Square'
-        side = 1.0; pts=[-side/2 -side/2; side/2 -side/2; side/2 side/2; -side/2 side/2; -side/2 -side/2];
-        Nside = ceil(N/4); x=[]; y=[];
-        for i=1:4
-            xs = linspace(pts(i,1), pts(i+1,1), Nside);
-            ys = linspace(pts(i,2), pts(i+1,2), Nside);
-            x = [x xs(1:end-1)]; y = [y ys(1:end-1)];
-        end
-        x = [x x(1)]; y = [y y(1)];
-        dist = [0 cumsum(sqrt(diff(x).^2 + diff(y).^2))]; tOrig = dist/dist(end); tNew = linspace(0,1,N);
-        x_out = interp1(tOrig, x, tNew, 'spline'); y_out = interp1(tOrig, y, tNew, 'spline');
-    case 'Custom'
-        title(gca,'Click points; double-click to finish'); [xc,yc] = getpts(gca);
-        if numel(xc)<2, x_out=[]; y_out=[]; return; end
-        tOrig = linspace(0,1,numel(xc)); tNew = linspace(0,1,N);
-        x_out = interp1(tOrig, xc, tNew, 'spline'); y_out = interp1(tOrig, yc, tNew, 'spline');
-    otherwise
-        x_out = zeros(1,N); y_out = zeros(1,N);
-end
+    t = linspace(0,2*pi,N);
+    switch type
+        case 'Circle'
+            R = 0.5; x_out = R*cos(t); y_out = R*sin(t);
+        case 'Line'
+            x_out = linspace(-0.5,0.5,N); y_out = zeros(1,N);
+        case 'Square'
+            side = 1.0; pts=[-side/2 -side/2; side/2 -side/2; side/2 side/2; -side/2 side/2; -side/2 -side/2];
+            Nside = ceil(N/4); x=[]; y=[];
+            for i=1:4
+                xs = linspace(pts(i,1), pts(i+1,1), Nside);
+                ys = linspace(pts(i,2), pts(i+1,2), Nside);
+                x = [x xs(1:end-1)]; y = [y ys(1:end-1)];
+            end
+            x = [x x(1)]; y = [y y(1)];
+            dist = [0 cumsum(sqrt(diff(x).^2 + diff(y).^2))]; tOrig = dist/dist(end); tNew = linspace(0,1,N);
+            x_out = interp1(tOrig, x, tNew, 'spline'); y_out = interp1(tOrig, y, tNew, 'spline');
+        case 'Custom'
+            % --- FIX: Used ginput (standard) instead of getpts (toolbox) ---
+            title(gca,'Left-Click to add points. Press ENTER to finish.');
+            hold(gca, 'on');
+            xc = []; yc = [];
+            while true
+                % Get one click at a time
+                [tx, ty, button] = ginput(1);
+                
+                % If user presses Enter (tx is empty) or Right Click (button 3), stop
+                if isempty(tx) || button == 3
+                    break;
+                end
+                
+                xc = [xc; tx];
+                yc = [yc; ty];
+                
+                % Visual feedback: Plot point and line connecting to previous
+                plot(gca, tx, ty, 'ro', 'MarkerSize', 4, 'MarkerFaceColor','r');
+                if numel(xc) > 1
+                    plot(gca, xc(end-1:end), yc(end-1:end), 'r--');
+                end
+            end
+            hold(gca, 'off');
+            
+            % Processing the points
+            if numel(xc) < 2
+                x_out=[]; y_out=[]; 
+                title(gca,'Trajectory Cancelled (Not enough points)');
+                return; 
+            end
+            
+            % Interpolate through the clicked points
+            tOrig = linspace(0,1,numel(xc)); 
+            tNew = linspace(0,1,N);
+            x_out = interp1(tOrig, xc, tNew, 'spline'); 
+            y_out = interp1(tOrig, yc, tNew, 'spline');
+        otherwise
+            x_out = zeros(1,N); y_out = zeros(1,N);
+    end
 end
 
 function [vals, next_i] = read_numbers(tokens, i_start)
