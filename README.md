@@ -367,8 +367,3 @@ This Simulink model consumes variables exported by `onMoveOn` and demonstrates P
 
 ---
 
-If you'd like, I will:
-- (A) write this updated README back to `/mnt/data/README.md` (overwrite), or
-- (B) save as a new file `/mnt/data/README_functions.md` and provide a direct link.
-
-Which option do you want?
