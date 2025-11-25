@@ -1,6 +1,3 @@
-Here is the complete, updated `README.md` file in Markdown format.
-
-```markdown
 # 2-Link Drawing Manipulator - Project Documentation
 
 ## Project Overview
@@ -24,17 +21,14 @@ This project implements a **2-Link Planar Drawing Manipulator** with a comprehen
 The project is organized into modular components within the `Robotc` folder:
 
 ```
-
 Robotc/
-├── main\_gui\_final.m          \# Main GUI application (top module)
-├── inverse\_kinematics.m     \# IK solver for 2-link manipulator
-├── forward\_kinematics.m     \# FK computation for verification
-├── svg\_parser.m            \# SVG path parsing and curve sampling
-├── trajectory\_generation.m  \# Trajectory creation and resampling
-├── smoothing.m             \# Joint angle smoothing algorithms
-├── plotting.m              \# Visualization and diagnostic plots
-└── robot\_tracker.slx       \# Simulink model for control simulation
-
+├── main_gui_final.m          # Main GUI application (top module)
+├── inverse_kinematics.m     # IK solver for 2-link manipulator
+├── forward_kinematics.m     # FK computation for verification
+├── svg_parser.m            # SVG path parsing and curve sampling
+├── trajectory_generation.m  # Trajectory creation and resampling
+├── smoothing.m             # Joint angle smoothing algorithms
+└── plotting.m              # Visualization and diagnostic plots
 ```
 
 ---
@@ -104,13 +98,11 @@ The 2-link manipulator has:
 
 **Mathematical Model**:
 ```
-
 x₁ = L₁·cos(θ₁)
 y₁ = L₁·sin(θ₁)
 x₂ = x₁ + L₂·cos(θ₁ + θ₂)
 y₂ = y₁ + L₂·sin(θ₁ + θ₂)
-
-````
+```
 
 **Usage**: Validates IK solutions and generates end-effector trajectory for visualization.
 
@@ -229,87 +221,42 @@ Comprehensive diagnostic plots (6 subplots):
 
 ---
 
-### 8. `robot_tracker.slx` - Simulink Control Simulation
-
-**Purpose**: Provides a dynamic simulation of the robot arm tracking the generated trajectory using closed-loop PD control. It validates the kinematic data exported from the GUI against a continuous plant model.
-
-**Components & Blocks**:
-
-1.  [cite_start]**Input Data (`From Workspace`)**[cite: 20]:
-    -   `theta1_ref` & `theta2_ref`: Imports the generated trajectory timeseries.
-    -   `L1` & `L2`: Imports arm lengths (`L1_sim`, `L2_sim`) defined in the workspace.
-
-2.  [cite_start]**Controller Subsystems (`PD Controller`)**[cite: 24]:
-    -   Implements a Proportional-Derivative control law: $\tau = K_p(e) + K_d(\dot{e})$.
-    -   [cite_start]**Gain Blocks**: Uses workspace variables `Kp` and `Kd` to tune performance[cite: 8].
-    -   [cite_start]**Derivative Block**: Computes the rate of change of the error signal[cite: 7].
-    -   [cite_start]**Sum Blocks**: Calculates error (`ref - actual`) and sums the P and D components[cite: 8, 9].
-
-3.  [cite_start]**Plant Model (`Transfer Fcn`)**[cite: 20]:
-    -   Simulates the motor/arm dynamics using a second-order transfer function ($ \frac{1}{s^2 + s} $).
-    -   Takes torque ($\tau$) as input and outputs the actual joint angle.
-
-4.  [cite_start]**MATLAB Function Block (`fcn`)**[cite: 161]:
-    -   **Purpose**: Computes real-time Forward Kinematics for visualization.
-    -   **Logic**:
-        ```matlab
-        function [x_out, y_out] = fcn(q1, q2, L1, L2)
-            % Calculates coordinates for base, joint 1, and end-effector
-            x0 = 0; y0 = 0;
-            x1 = L1*cos(q1); y1 = L1*sin(q1);
-            x2 = x1 + L2*cos(q1+q2); y2 = y1 + L2*sin(q1+q2);
-            x_out = [x0, x1, x2];
-            y_out = [y0, y1, y2];
-        end
-        ```
-    -   [cite_start]**Outputs**: Vectors `x_out` and `y_out` containing the coordinates of the links for plotting[cite: 164].
-
-5.  [cite_start]**Visualization Tools**[cite: 25, 27]:
-    -   **XY Graph**: Plots the actual path of the robot in Cartesian space.
-    -   **Scopes**: Displays the reference vs. actual joint angles for both Joint 1 and Joint 2 to monitor tracking performance.
-
----
-
 ## Code Logic Flow
 
 ### Complete Workflow
 
-````
+```
+1. USER INPUT
+   ├── Set arm lengths (L1, L2)
+   ├── Choose trajectory type
+   ├── Configure sampling parameters
+   └── Set initial position (initX, initY)
 
-1.  USER INPUT
-    ├── Set arm lengths (L1, L2)
-    ├── Choose trajectory type
-    ├── Configure sampling parameters
-    └── Set initial position (initX, initY)
+2. TRAJECTORY GENERATION
+   ├── Built-in: generate_builtin() → parametric equations
+   ├── SVG: parseSVGPath_enhanced_fixed() → path parsing
+   └── translate_and_scale_to_init() → workspace fitting
+   └── resample_and_smooth_path_param() → uniform sampling
 
-2.  TRAJECTORY GENERATION
-    ├── Built-in: generate\_builtin() → parametric equations
-    ├── SVG: parseSVGPath\_enhanced\_fixed() → path parsing
-    └── translate\_and\_scale\_to\_init() → workspace fitting
-    └── resample\_and\_smooth\_path\_param() → uniform sampling
+3. INVERSE KINEMATICS
+   ├── For each trajectory point:
+   │   └── inverse_kinematics() → (θ₁, θ₂)
+   ├── fill_and_interp_nans() → handle unreachable points
+   ├── unwrap() → remove angle discontinuities
+   └── quintic_bspline_joint_smooth() → smooth motion
 
-3.  INVERSE KINEMATICS
-    ├── For each trajectory point:
-    │   └── inverse\_kinematics() → (θ₁, θ₂)
-    ├── fill\_and\_interp\_nans() → handle unreachable points
-    ├── unwrap() → remove angle discontinuities
-    └── quintic\_bspline\_joint\_smooth() → smooth motion
+4. ANIMATION
+   ├── Time-based frame selection
+   ├── update_links_plot() → visual update
+   └── forward_kinematics_traj() → verification
 
-4.  ANIMATION
-    ├── Time-based frame selection
-    ├── update\_links\_plot() → visual update
-    └── forward\_kinematics\_traj() → verification
-
-5.  EXPORT & SIMULATION
-    ├── Create time vectors
-    ├── Export joint angles (theta1\_ref, theta2\_ref)
-    ├── Export end-effector (ee\_ref)
-    ├── Create timeseries objects
-    └── control\_analysis\_exhibit() → diagnostics
-
-<!-- end list -->
-
-````
+5. EXPORT
+   ├── Create time vectors
+   ├── Export joint angles (theta1_ref, theta2_ref)
+   ├── Export end-effector (ee_ref)
+   ├── Create timeseries objects
+   └── control_analysis_exhibit() → diagnostics
+```
 
 ### Key Algorithms
 
@@ -320,10 +267,9 @@ Comprehensive diagnostic plots (6 subplots):
 3. Solve for θ₂ using cosine law
 4. Solve for θ₁ using geometric relationships
 5. Return angles with validity flag
-````
+```
 
 #### Trajectory Resampling Algorithm
-
 ```matlab
 1. Remove duplicate points
 2. Compute cumulative arc length
@@ -334,7 +280,6 @@ Comprehensive diagnostic plots (6 subplots):
 ```
 
 #### SVG Parsing Algorithm
-
 ```matlab
 1. Parse XML structure
 2. Extract path data strings
@@ -346,115 +291,110 @@ Comprehensive diagnostic plots (6 subplots):
 5. Normalize coordinates
 ```
 
------
+---
 
 ## Usage Instructions
 
 ### Getting Started
 
-1.  **Navigate to Robotc folder**:
+1. **Navigate to Robotc folder**:
+   ```matlab
+   cd Robotc
+   ```
 
-    ```matlab
-    cd Robotc
-    ```
+2. **Run the GUI**:
+   ```matlab
+   main_gui_final
+   ```
 
-2.  **Run the GUI**:
-
-    ```matlab
-    main_gui_final
-    ```
-
-3.  **Basic Workflow**:
-
-      - Set arm lengths (L1, L2)
-      - Choose trajectory type
-      - Click "Generate Trajectory"
-      - Click "Compute IK"
-      - Click "Animate" to visualize
-      - Click "Move on →" to export for Simulink
+3. **Basic Workflow**:
+   - Set arm lengths (L1, L2)
+   - Choose trajectory type
+   - Click "Generate Trajectory"
+   - Click "Compute IK"
+   - Click "Animate" to visualize
+   - Click "Move on →" to export for Simulink
 
 ### Parameter Configuration
 
-  - **Arm L1, L2**: Link lengths in meters (default: 1.0 m each)
-  - **Trajectory Type**: Circle, Line, Square, Custom, or SVG
-  - **Initial X, Y**: Translation offset for trajectory (default: 0, 0)
-  - **Curve Samples**: Points per curve segment for SVG (default: 40)
-  - **Resample N**: Total trajectory points (default: 2000)
-  - **Total Time**: Animation duration in seconds (default: 8 s)
-  - **Elbow Choice**: Elbow-up or elbow-down configuration
+- **Arm L1, L2**: Link lengths in meters (default: 1.0 m each)
+- **Trajectory Type**: Circle, Line, Square, Custom, or SVG
+- **Initial X, Y**: Translation offset for trajectory (default: 0, 0)
+- **Curve Samples**: Points per curve segment for SVG (default: 40)
+- **Resample N**: Total trajectory points (default: 2000)
+- **Total Time**: Animation duration in seconds (default: 8 s)
+- **Elbow Choice**: Elbow-up or elbow-down configuration
 
 ### SVG File Import
 
-1.  Click "Upload SVG Path"
-2.  Select SVG file from dialog
-3.  System automatically:
-      - Parses path data
-      - Normalizes coordinates
-      - Scales to fit workspace
-      - Resamples to N points
-4.  Adjust Initial X, Y if trajectory is outside reach
+1. Click "Upload SVG Path"
+2. Select SVG file from dialog
+3. System automatically:
+   - Parses path data
+   - Normalizes coordinates
+   - Scales to fit workspace
+   - Resamples to N points
+4. Adjust Initial X, Y if trajectory is outside reach
 
 ### Custom Trajectory
 
-1.  Select "Custom" from trajectory type
-2.  Click "Generate Trajectory"
-3.  Left-click on workspace to add points
-4.  Press ENTER or right-click to finish
-5.  System interpolates smooth path through points
+1. Select "Custom" from trajectory type
+2. Click "Generate Trajectory"
+3. Left-click on workspace to add points
+4. Press ENTER or right-click to finish
+5. System interpolates smooth path through points
 
------
+---
 
 ## Technical Details
 
 ### Workspace Limits
 
 The robot workspace is defined by:
-
-  - **Outer boundary**: Circle with radius `L₁ + L₂`
-  - **Inner boundary**: Circle with radius `|L₁ - L₂|` (if L₁ ≠ L₂)
-  - **Reachable region**: Annular region between boundaries
+- **Outer boundary**: Circle with radius `L₁ + L₂`
+- **Inner boundary**: Circle with radius `|L₁ - L₂|` (if L₁ ≠ L₂)
+- **Reachable region**: Annular region between boundaries
 
 ### Coordinate System
 
-  - **Origin**: Base joint (0, 0)
-  - **X-axis**: Horizontal (right = positive)
-  - **Y-axis**: Vertical (up = positive)
-  - **Angles**: Counter-clockwise positive (standard convention)
+- **Origin**: Base joint (0, 0)
+- **X-axis**: Horizontal (right = positive)
+- **Y-axis**: Vertical (up = positive)
+- **Angles**: Counter-clockwise positive (standard convention)
 
 ### Trajectory Processing
 
-1.  **Normalization**: SVG paths are centered and scaled to unit size
-2.  **Scaling**: Paths scaled to 80% of maximum reach
-3.  **Translation**: Applied to initial position (initX, initY)
-4.  **Resampling**: Uniform arc-length parameterization
-5.  **Smoothing**: Moving filters reduce numerical noise
+1. **Normalization**: SVG paths are centered and scaled to unit size
+2. **Scaling**: Paths scaled to 80% of maximum reach
+3. **Translation**: Applied to initial position (initX, initY)
+4. **Resampling**: Uniform arc-length parameterization
+5. **Smoothing**: Moving filters reduce numerical noise
 
 ### Joint Angle Smoothing
 
-  - **Gap Filling**: PCHIP interpolation for unreachable points
-  - **Unwrapping**: Removes 2π discontinuities
-  - **B-spline Smoothing**: 6th-order B-spline for C⁵ continuity
-  - **Fallback**: Cubic spline if B-spline unavailable
+- **Gap Filling**: PCHIP interpolation for unreachable points
+- **Unwrapping**: Removes 2π discontinuities
+- **B-spline Smoothing**: 6th-order B-spline for C⁵ continuity
+- **Fallback**: Cubic spline if B-spline unavailable
 
 ### Animation Control
 
-  - **Time-based**: Uses actual elapsed time for frame selection
-  - **Frame Skipping**: Updates only when time advances significantly
-  - **Real-time Display**: Shows current joint angles in status text
-  - **Smooth Motion**: Interpolated joint angles ensure fluid animation
+- **Time-based**: Uses actual elapsed time for frame selection
+- **Frame Skipping**: Updates only when time advances significantly
+- **Real-time Display**: Shows current joint angles in status text
+- **Smooth Motion**: Interpolated joint angles ensure fluid animation
 
 ### Simulink Integration
 
 Exported variables:
+- `theta1_ref`: [time, angle] array for joint 1
+- `theta2_ref`: [time, angle] array for joint 2
+- `ee_ref`: [time, x, y] array for end-effector
+- `L1_sim`, `L2_sim`: Link lengths
+- `Kp`, `Kd`: PD controller gains
+- `ts_theta1`, `ts_theta2`, `ts_ee`: Timeseries objects
 
-  - `theta1_ref`: [time, angle] array for joint 1
-  - `theta2_ref`: [time, angle] array for joint 2
-  - `ee_ref`: [time, x, y] array for end-effector
-  - `L1_sim`, `L2_sim`: Link lengths
-  - `Kp`, `Kd`: PD controller gains
-  - `ts_theta1`, `ts_theta2`, `ts_ee`: Timeseries objects
-
------
+---
 
 ## Mathematical Foundations
 
@@ -463,20 +403,17 @@ Exported variables:
 For a 2-link planar manipulator:
 
 **Position constraint**:
-
 ```
 px = L₁·cos(θ₁) + L₂·cos(θ₁ + θ₂)
 py = L₁·sin(θ₁) + L₂·sin(θ₁ + θ₂)
 ```
 
 **Distance from base**:
-
 ```
 r² = px² + py² = L₁² + L₂² + 2·L₁·L₂·cos(θ₂)
 ```
 
 **Solving for θ₂**:
-
 ```
 cos(θ₂) = (r² - L₁² - L₂²) / (2·L₁·L₂)
 θ₂ = ±arccos(cos(θ₂))
@@ -484,7 +421,6 @@ cos(θ₂) = (r² - L₁² - L₂²) / (2·L₁·L₂)
 
 **Solving for θ₁**:
 Using geometric relationships:
-
 ```
 θ₁ = atan2(py, px) - atan2(L₂·sin(θ₂), L₁ + L₂·cos(θ₂))
 ```
@@ -492,14 +428,12 @@ Using geometric relationships:
 ### Forward Kinematics
 
 **Joint positions**:
-
 ```
 x₁ = L₁·cos(θ₁)
 y₁ = L₁·sin(θ₁)
 ```
 
 **End-effector position**:
-
 ```
 x₂ = x₁ + L₂·cos(θ₁ + θ₂)
 y₂ = y₁ + L₂·sin(θ₁ + θ₂)
@@ -508,44 +442,40 @@ y₂ = y₁ + L₂·sin(θ₁ + θ₂)
 ### Bézier Curve Sampling
 
 **Cubic Bézier** (4 control points: P₀, P₁, P₂, P₃):
-
 ```
 P(t) = (1-t)³·P₀ + 3(1-t)²t·P₁ + 3(1-t)t²·P₂ + t³·P₃
 ```
 
 **Quadratic Bézier** (3 control points: P₀, P₁, P₂):
-
 ```
 P(t) = (1-t)²·P₀ + 2(1-t)t·P₁ + t²·P₂
 ```
 
------
+---
 
 ## Error Handling
 
 The system includes robust error handling:
 
-1.  **Reachability Checks**: Validates workspace limits before IK computation
-2.  **NaN Handling**: Interpolates unreachable points
-3.  **Empty Trajectory**: Prevents computation on invalid data
-4.  **SVG Parsing Errors**: Catches XML and path parsing exceptions
-5.  **Toolbox Availability**: Falls back to standard functions if toolboxes unavailable
+1. **Reachability Checks**: Validates workspace limits before IK computation
+2. **NaN Handling**: Interpolates unreachable points
+3. **Empty Trajectory**: Prevents computation on invalid data
+4. **SVG Parsing Errors**: Catches XML and path parsing exceptions
+5. **Toolbox Availability**: Falls back to standard functions if toolboxes unavailable
 
------
+---
 
 ## Dependencies
 
 ### Required MATLAB Toolboxes
-
-  - **Base MATLAB**: Core functionality
-  - **Signal Processing Toolbox**: For `movmedian()` and `movmean()` (optional, has fallbacks)
+- **Base MATLAB**: Core functionality
+- **Signal Processing Toolbox**: For `movmedian()` and `movmean()` (optional, has fallbacks)
 
 ### Optional Toolboxes
+- **Spline Toolbox**: For B-spline smoothing (falls back to cubic spline if unavailable)
+- **Simulink**: For importing exported data (not required for GUI operation)
 
-  - **Spline Toolbox**: For B-spline smoothing (falls back to cubic spline if unavailable)
-  - **Simulink**: For importing exported data (not required for GUI operation)
-
------
+---
 
 ## Project Structure Summary
 
@@ -558,34 +488,230 @@ The system includes robust error handling:
 | `trajectory_generation.m` | Path creation | `generate_builtin()`, `resample_and_smooth_path_param()` |
 | `smoothing.m` | Motion smoothing | `fill_and_interp_nans()`, `quintic_bspline_joint_smooth()` |
 | `plotting.m` | Visualization | `update_links_plot()`, `control_analysis_exhibit()` |
-| `robot_tracker.slx` | Control Simulation | `PD Controller`, `MATLAB Function`, `XY Graph` |
 
------
+---
 
 ## Future Enhancements
 
 Potential improvements:
+- 3D manipulator support
+- Dynamic trajectory optimization
+- Collision avoidance
+- Real-time control interface
+- Additional trajectory types
+- Export to other formats (ROS, URDF)
 
-  - 3D manipulator support
-  - Dynamic trajectory optimization
-  - Collision avoidance
-  - Real-time control interface
-  - Additional trajectory types
-  - Export to other formats (ROS, URDF)
-
------
+---
 
 ## Author Notes
 
 This project demonstrates:
-
-  - **Robotics fundamentals**: Kinematics, trajectory planning
-  - **GUI development**: MATLAB App Designer concepts
-  - **File processing**: SVG parsing and data extraction
-  - **Numerical methods**: Interpolation, smoothing, optimization
-  - **System integration**: Simulink data export
+- **Robotics fundamentals**: Kinematics, trajectory planning
+- **GUI development**: MATLAB App Designer concepts
+- **File processing**: SVG parsing and data extraction
+- **Numerical methods**: Interpolation, smoothing, optimization
+- **System integration**: Simulink data export
 
 The modular architecture allows easy extension and maintenance while keeping the codebase organized and understandable.
 
+
+
+# Simulink Model: `robot_tracker.slx` — Components, Functionality, and Integration
+
+**Model file location:**  
+`sandbox:/mnt/data/robot_tracker.slx`
+
+This section documents the complete Simulink model used in the project.  
+It *adds* to the existing README without removing any content.
+
+---
+
+## ⭐ Purpose of the Simulink Model
+
+The GUI (`main_gui_final.m`) exports joint trajectories, EE trajectories, and robot parameters to the MATLAB base workspace.  
+The Simulink model `robot_tracker.slx` uses this data to:
+
+- Track the generated trajectory using a PD controller.
+- Simulate joint behavior.
+- Compute forward kinematics.
+- Visualize the end-effector path.
+- Log simulation data for analysis.
+
+---
+
+## 📥 Workspace Variables Used by the Model
+
+The GUI automatically exports the following variables:
+
+| Variable Name | Type | Purpose |
+|---------------|-------|---------|
+| `theta1_ref` | Nx2 array `[t, θ1]` | Joint 1 reference |
+| `theta2_ref` | Nx2 array `[t, θ2]` | Joint 2 reference |
+| `ee_ref` | Nx3 array `[t, x, y]` | Desired end‑effector path |
+| `ts_theta1` | timeseries | Alt input for Simulink |
+| `ts_theta2` | timeseries | Alt input for Simulink |
+| `ts_ee` | timeseries | Alt XY reference |
+| `L1_sim`, `L2_sim` | scalars | Link lengths |
+| `Kp = 10`, `Kd = 2` | scalars | Controller gains |
+
+These variables allow the Simulink model to reproduce and analyze motion.
+
+---
+
+## 🧩 Simulink Model — Block-Level Description
+
+Below is the **complete functional description** of the Simulink model expected for this project.
+
+### 1. **From Workspace Blocks**
+These blocks import simulation references:
+
+- **From Workspace (theta1_ref)**  
+  Reads `[time, theta1]` for Joint 1.
+
+- **From Workspace (theta2_ref)**  
+  Reads Joint 2 trajectory.
+
+- **From Workspace (ee_ref)** *(optional)*  
+  Useful for visual comparison in XY plot.
+
+These signals drive the controllers.
+
+---
+
+### 2. **PD Controller Subsystems**
+
+Each joint has a dedicated subsystem:
+
+#### **Joint 1 PD Controller**
+- Inputs: `θ1_ref`, `θ1_meas`
+- Computes: `u1 = Kp (e) + Kd (de/dt)`
+- Where `e = θ1_ref – θ1_meas`
+
+#### **Joint 2 PD Controller**
+Same structure for joint 2.
+
+Both use workspace parameters `Kp`, `Kd`.
+
+---
+
+### 3. **Plant Model / Robot Dynamics**
+
+This subsystem simulates joint motion.
+
+Common setups:
+
+- **Simple integration model**:  
+  `θ_dot = u`, `θ = ∫θ_dot`
+
+- or a **2nd-order joint model** *(if implemented)*:  
+  `θ_dd = (u - damping*θ_dot)/Inertia`
+
+Outputs:
+- `θ1_meas`, `θ2_meas`
+- `θ1_dot`, `θ2_dot` *(if included)*
+
+---
+
+### 4. **Forward Kinematics (MATLAB Function Block)**
+
+A MATLAB Function block computes:
+
+```matlab
+x1 = L1*cos(theta1);
+y1 = L1*sin(theta1);
+x2 = x1 + L2*cos(theta1 + theta2);
+y2 = y1 + L2*sin(theta1 + theta2);
 ```
-```
+
+Outputs:
+- End-effector X, Y
+- Intermediate link coordinates
+
+Used by scopes and XY plots.
+
+---
+
+### 5. **XY Graph / Scopes**
+
+Blocks included:
+
+- **XY Graph**  
+  Plots `x2` vs `y2` in real-time.
+
+- **Scopes**  
+  Show:
+  - Joint angles vs references
+  - Errors
+  - Torques
+  - End-effector tracking
+
+---
+
+### 6. **To Workspace Blocks**
+
+For post-simulation analysis:
+
+- `theta1_out`
+- `theta2_out`
+- `ee_out` (time,x,y)
+
+These support plotting functions such as  
+`control_analysis_exhibit(d)` in your GUI.
+
+---
+
+## 🛠 MATLAB Functions Used Inside the Model
+
+Simulink may call or embed the following functions:
+
+### ✔ `forward_kinematics_traj`
+Also used in GUI — reused for Simulink FK.
+
+### ✔ Basic math functions  
+`cos`, `sin`, `atan2`, `sqrt`, etc.
+
+### ✔ Optional interpolation  
+If lookup tables are used:
+`interp1`
+
+All functions are supported by MATLAB Function blocks.
+
+---
+
+## ▶ How To Run the Simulink Model
+
+1. Run GUI → Generate Trajectory → Compute IK → **Move on →**
+2. This exports all required variables.
+3. Open the model:
+   ```matlab
+   open('robot_tracker.slx');
+   ```
+4. Press **Run**.
+5. Observe end‑effector motion, joint tracking, and scopes.
+
+---
+
+## 📌 Important Notes
+
+- Solver recommended: **ode45** (variable-step) or **ode3** (fixed-step).
+- Stop time should match:
+  ```matlab
+  T = theta1_ref(end,1)
+  ```
+- Model must reference the exact workspace variable names listed above.
+
+---
+
+## 🎯 Summary
+
+`robot_tracker.slx` acts as the simulation bridge between:
+
+- GUI trajectory generation  
+- PD control  
+- Robot kinematics  
+- Visualization & plotting  
+
+It ensures the software-in-the-loop (SIL) capability of the 2-link drawing robot.
+
+---
+
