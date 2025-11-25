@@ -1,4 +1,4 @@
-function main_gui_final2
+function main_gui_final
 % MAIN_GUI_FINAL2
 % 2-link drawing manipulator GUI with robust SVG parsing, parameterized sampling,
 % faster animation, Simulink export, and improved UX.
@@ -154,95 +154,81 @@ guidata(hFig,data);
     end
 
     function onAnimate(~,~)
-        % Robust animate: recreates status text if missing; regulates realtime
+        % Time-based animation with frame skipping to ensure speed accuracy
         d = guidata(hFig);
         if ~isfield(d,'joint'), errordlg('Compute IK first.','No IK'); return; end
 
         N = numel(d.joint.theta1);
         if N == 0, errordlg('Empty joint trajectory.','Error'); return; end
 
-        % total time and timestep
+        % Get target duration
         T = max(0.001, d.params.totalTime);
-        dt = T / max(1, N-1);
 
-        % check axes
+        % Check axes
         if ~isfield(d,'ax') || ~ishandle(d.ax)
             errordlg('Axes lost. Please restart GUI.','Axes error'); return;
         end
 
-        % obtain/create a single persistent text object (tag = 'statusText')
+        % --- Text Object Handling (Same as your original) ---
         htxt = [];
         try
             htxt = findobj(d.ax, '-regexp', 'Tag', '^statusText$');
             if isempty(htxt) || ~all(ishandle(htxt))
-                % create new; place relative to axes limits
                 lims = axis(d.ax);
                 x_pos = lims(1) + 0.02*(lims(2)-lims(1));
                 y_pos = lims(4) - 0.02*(lims(4)-lims(3));
                 htxt = text(d.ax, x_pos, y_pos, '', 'FontSize',10, 'BackgroundColor','w', ...
                     'VerticalAlignment','top', 'EdgeColor',[0.8 0.8 0.8], 'Tag','statusText');
             else
-                htxt = htxt(1); % take first if many
+                htxt = htxt(1);
             end
         catch
-            % as last resort create a new text on gca
-            try
-                htxt = text(d.ax, -(d.params.L1+d.params.L2)*0.9, (d.params.L1+d.params.L2)*0.9, '', ...
-                    'FontSize',10,'BackgroundColor','w','VerticalAlignment','top','Tag','statusText');
-            catch
-                htxt = []; % we'll tolerate absence
-            end
+            % Fallback ignored
         end
-
-        % store the text handle in guidata so future runs can find it quickly
         d.statusTextHandle = htxt; guidata(hFig,d);
+        % ---------------------------------------------------
 
         tStart = tic;
-        for i = 1:N
-            % sanity checks each iteration (handle or data might be invalidated)
-            if ~isfield(d,'joint') || ~isreal(d.joint.theta1), break; end
-            if isnan(d.joint.theta1(i)), continue; end
+        
+        while true
+            % 1. Calculate how much time has passed
+            elapsed = toc(tStart);
+            
+            % 2. Calculate completion ratio (0.0 to 1.0)
+            ratio = elapsed / T;
+            if ratio > 1, ratio = 1; end
+            
+            % 3. Determine which Index (1 to N) corresponds to this time
+            idx = round(1 + (N-1) * ratio);
+            
+            % Safety clamp
+            if idx < 1, idx = 1; end
+            if idx > N, idx = N; end
 
-            % update plotting
+            % 4. Update plot for THIS index only (Skip intermediate frames)
             try
-                update_links_plot(d, i);
+                update_links_plot(d, idx);
+                
+                % Update status text
+                if ~isempty(htxt) && ishandle(htxt)
+                    set(htxt,'String', sprintf('θ1 = %.1f°\nθ2 = %.1f°', ...
+                        rad2deg(d.joint.theta1(idx)), rad2deg(d.joint.theta2(idx))));
+                end
             catch
-                % if plotting fails, stop gracefully
-                warning('update_links_plot failed at index %d; stopping animation.', i);
+                break; % Stop if plot fails
+            end
+
+            % Force draw update
+            drawnow limitrate;
+
+            % 5. Exit condition: Time is up
+            if elapsed >= T
                 break;
             end
-
-            % update / recreate status text safely
-            try
-                if isempty(htxt) || ~ishandle(htxt)
-                    % try to recreate (axes may have changed)
-                    lims = axis(d.ax);
-                    x_pos = lims(1) + 0.02*(lims(2)-lims(1));
-                    y_pos = lims(4) - 0.02*(lims(4)-lims(3));
-                    htxt = text(d.ax, x_pos, y_pos, '', 'FontSize',10, 'BackgroundColor','w', ...
-                        'VerticalAlignment','top', 'EdgeColor',[0.8 0.8 0.8], 'Tag','statusText');
-                    % store again
-                    d.statusTextHandle = htxt; guidata(hFig,d);
-                end
-                if ~isempty(htxt) && ishandle(htxt)
-                    set(htxt,'String', sprintf('θ1 = %.1f°\nθ2 = %.1f°', rad2deg(d.joint.theta1(i)), rad2deg(d.joint.theta2(i))));
-                end
-            catch
-                % ignore set errors (object may have been deleted between check and set)
-            end
-
-            % regulate timing to avoid pauses/jitter
-            elapsed = toc(tStart);
-            target = (i-1) * dt;
-            pause_time = target - elapsed;
-            if pause_time > 0
-                % small cap to avoid long sleeps if GUI gets blocked
-                pause(min(pause_time, 0.05));
-            else
-                % running late: keep drawing but don't pause
-                drawnow limitrate;
-            end
         end
+        
+        % Ensure the very last frame is drawn at the end
+        update_links_plot(d, N);
     end
 
         function onMoveOn(~,~)
